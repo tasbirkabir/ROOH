@@ -337,7 +337,7 @@ export default function Dashboard() {
   // 3. Native OS Notification Permissions and Helper Engine
   const [hasPushPermission, setHasPushPermission] = useState(false);
 
-  // Request native OS Notification access on page mount
+  // Request native OS Notification access and register Service Worker on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setHasPushPermission(Notification.permission === 'granted');
@@ -347,29 +347,59 @@ export default function Dashboard() {
         });
       }
     }
+
+    // Vercel PWA Worker Registration
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('data:application/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdwdXNoJywgZnVuY3Rpb24oZSl7fSk7', { scope: '/' })
+        .then(() => console.log('Vercel PWA Worker Active.'))
+        .catch(err => console.log('Worker registration failed:', err));
+    }
   }, []);
 
-  // Bulletproof Notification Delivery Engine
+  // Bulletproof Notification Delivery Engine with SW Overdrive
   const sendNativeNotification = (title: string, message: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       console.warn(`[Push Mock] ${title}: ${message}`);
       return;
     }
 
+    // Force production-grade parameters to wake up lock screens and notify reliably
+    const options = {
+      body: message,
+      tag: "medication-reminder",
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [300, 100, 300]
+    };
+
     if (Notification.permission === 'granted') {
-      try {
-        new Notification(title, {
-          body: message,
-          requireInteraction: true // Keeps the notification card anchored until dismissed
+      // Prioritize SW registration to bypass background restrictions
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((registration) => {
+          registration.showNotification(title, options)
+            .catch(err => {
+              console.warn("SW Notification failed, using fallback:", err);
+              new Notification(title, options);
+            });
+        }).catch(() => {
+          new Notification(title, options);
         });
-      } catch (err) {
-        console.error("Notification trigger failure:", err);
+      } else {
+        new Notification(title, options);
       }
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission().then((permission) => {
         setHasPushPermission(permission === 'granted');
         if (permission === 'granted') {
-          new Notification(title, { body: message });
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then((registration) => {
+              registration.showNotification(title, options);
+            }).catch(() => {
+              new Notification(title, options);
+            });
+          } else {
+            new Notification(title, options);
+          }
         }
       });
     } else {
@@ -880,6 +910,8 @@ export default function Dashboard() {
                     setHasPushPermission(permission === 'granted');
                     alert(permission === 'granted' ? "Notifications enabled! 🌸" : "Notification permission denied.");
                   });
+                } else {
+                  alert("Notifications are not supported on this browser.");
                 }
               }}
               className="flex items-center gap-2 bg-white/60 hover:bg-white/95 px-4 py-2 rounded-full border border-[#0D3B66]/5 shadow-sm text-xs font-bold transition-all text-[#0D3B66] font-sans"
@@ -956,10 +988,10 @@ export default function Dashboard() {
                     <svg className="absolute w-full h-full transform -rotate-90">
                       <circle cx="64" cy="64" r="54" stroke="#F3F4F6" strokeWidth="8" fill="transparent" />
                       <circle cx="64" cy="64" r="54" stroke="#CCFFBC" strokeWidth="8" fill="transparent" 
-                        strokeDasharray={2 * Math.PI * 54} 
-                        strokeDashoffset={2 * Math.PI * 54 * (secondsRemaining / (studyHoursGoal * 3600))} 
-                        strokeLinecap="round"
-                        className="transition-all duration-300"
+                         strokeDasharray={2 * Math.PI * 54} 
+                         strokeDashoffset={2 * Math.PI * 54 * (secondsRemaining / (studyHoursGoal * 3600))} 
+                         strokeLinecap="round"
+                         className="transition-all duration-300"
                       />
                     </svg>
                     <div className="text-center z-10 font-sans">
@@ -1161,9 +1193,33 @@ export default function Dashboard() {
             
             {/* DOCTOR'S PRESCRIPTION & SCHEDULE (Health Module) */}
             <div className="bg-white/80 backdrop-blur-md border border-[#0D3B66]/5 rounded-3xl p-6 shadow-sm font-sans">
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="font-serif text-xl font-bold text-[#0D3B66]">Doctor's Prescription & Schedule</h3>
-                <Heart className="w-4 h-4 text-rose-500 fill-rose-100 animate-pulse" />
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif text-xl font-bold text-[#0D3B66]">Doctor's Prescription</h3>
+                  <Heart className="w-4 h-4 text-rose-500 fill-rose-100 animate-pulse" />
+                </div>
+                {/* Mobile Notification Safety Override Button */}
+                {!hasPushPermission && (
+                  <button
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && 'Notification' in window) {
+                        Notification.requestPermission().then((permission) => {
+                          setHasPushPermission(permission === 'granted');
+                          if (permission === 'granted') {
+                            sendNativeNotification("ROOH Care Matrix 🌸", "Mobile notification loop activated successfully!");
+                          } else {
+                            alert("Notification permissions not granted. Please adjust device settings.");
+                          }
+                        });
+                      } else {
+                        alert("Web Notifications are not supported on this browser or device.");
+                      }
+                    }}
+                    className="px-3 py-1 bg-[#CFC8FF]/30 hover:bg-[#CFC8FF]/50 text-[10px] font-bold rounded-full transition-all text-[#0D3B66] font-sans shrink-0 border border-[#0D3B66]/5"
+                  >
+                    Enable Mobile Alerts
+                  </button>
+                )}
               </div>
               <p className="text-xs text-[#0D3B66]/65 mb-6 font-sans">Manage scheduled medications. System matches clock and triggers alerts.</p>
 
