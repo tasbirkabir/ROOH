@@ -82,6 +82,35 @@ export default function Dashboard() {
   const [confetti, setConfetti] = useState<{ id: number; x: number; color: string }[]>([]);
   const [celebrationMessage, setCelebrationMessage] = useState<string | null>(null);
 
+  // 4. Emotional Journey States
+  const [isWhyRoohOpen, setIsWhyRoohOpen] = useState(false);
+  const [activeSurpriseNote, setActiveSurpriseNote] = useState<string | null>(null);
+
+  // Affirmation Matrix & Ultra-Rare Notes Setup
+  const SURPRISE_NOTES = [
+    "Just checking in. Have you had water today? 🌸",
+    "One chapter closer to becoming Dr. Ruhi. 📚",
+    "Someone is incredibly proud of you right now. 🤍",
+    "If today feels heavy, carry only the next step. 🌙",
+    "Hey future doctor, don't forget to be kind to yourself. 💌"
+  ];
+  const RARE_SURPRISE_NOTES = [
+    "I love your soul. — Tasbir 💎",
+    "You're my favorite person. Just thought you should know. 🤍💎"
+  ];
+
+  const triggerSurpriseNote = () => {
+    // 1% chance for ultra-rare secret notes
+    const isRare = Math.random() < 0.01;
+    if (isRare) {
+      const idx = Math.floor(Math.random() * RARE_SURPRISE_NOTES.length);
+      setActiveSurpriseNote(RARE_SURPRISE_NOTES[idx]);
+    } else {
+      const idx = Math.floor(Math.random() * SURPRISE_NOTES.length);
+      setActiveSurpriseNote(SURPRISE_NOTES[idx]);
+    }
+  };
+
   // Audio Letters Vault States
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -353,6 +382,20 @@ export default function Dashboard() {
       navigator.serviceWorker.register('data:application/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdwdXNoJywgZnVuY3Rpb24oZSl7fSk7', { scope: '/' })
         .then(() => console.log('Vercel PWA Worker Active.'))
         .catch(err => console.log('Worker registration failed:', err));
+    }
+  }, []);
+
+  // Surprise Notes Calm Interval check
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const lastShown = localStorage.getItem('rooh_last_surprise_time');
+      const now = Date.now();
+      if (!lastShown || now - parseInt(lastShown, 10) > 4 * 3600 * 1000) {
+        if (Math.random() < 0.15) {
+          triggerSurpriseNote();
+          localStorage.setItem('rooh_last_surprise_time', String(now));
+        }
+      }
     }
   }, []);
 
@@ -644,6 +687,8 @@ export default function Dashboard() {
             sendNativeNotification("ROOH Sanctuary 🧠", "done jaan eibar amar kase asho");
             // Trigger celebration overlay on goal completion
             triggerCelebration(getRandomAffirmation());
+            // Trigger surprise note
+            triggerSurpriseNote();
             // Optimistically update study streak on goal completion
             updateWellnessMetric('study_streak', 1);
             return 0;
@@ -740,6 +785,10 @@ export default function Dashboard() {
     if (is_completed) {
       // Trigger Celebration when task matches completed status
       triggerCelebration(getRandomAffirmation());
+      // 25% chance to trigger surprise note
+      if (Math.random() < 0.25) {
+        triggerSurpriseNote();
+      }
     }
 
     if (!userId) return;
@@ -865,6 +914,94 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* Surprise Notes Pop-up Card */}
+      <AnimatePresence>
+        {activeSurpriseNote && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.95 }}
+            className="fixed bottom-8 left-8 z-40 max-w-sm w-full bg-white/95 backdrop-blur-md border-2 border-[#CFC8FF] rounded-3xl p-5 shadow-xl flex flex-col justify-between"
+          >
+            <div className="flex justify-between items-start mb-3">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-purple-600 bg-purple-100 px-2.5 py-0.5 rounded-full font-sans">
+                Surprise Note 💌
+              </span>
+              <button 
+                onClick={() => setActiveSurpriseNote(null)}
+                className="text-gray-400 hover:text-gray-600 font-sans text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="font-serif text-base text-[#0D3B66] italic leading-relaxed mb-4">
+              "{activeSurpriseNote}"
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setActiveSurpriseNote(null)}
+                className="px-4 py-1.5 bg-[#0D3B66] text-white hover:bg-[#0c2e50] rounded-xl font-sans text-xs font-bold transition-all"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* "Why ROOH Exists" Full-Screen Modal Journey */}
+      <AnimatePresence>
+        {isWhyRoohOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#FFFDF7] z-50 overflow-y-auto flex items-center justify-center p-6 sm:p-12 md:p-24"
+          >
+            {/* Minimalist close button */}
+            <button
+              onClick={() => setIsWhyRoohOpen(false)}
+              className="absolute top-8 right-8 text-[#0D3B66] hover:scale-110 transition-transform font-sans text-sm font-bold flex items-center gap-2 bg-white/60 px-4 py-2 rounded-full border border-[#0D3B66]/10 shadow-sm"
+            >
+              ✕ Close
+            </button>
+
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              className="max-w-2xl w-full text-center space-y-8 py-12"
+            >
+              <h2 className="font-serif text-3xl sm:text-4xl font-extrabold tracking-wide text-[#0D3B66] mb-8">
+                Why ROOH Exists
+              </h2>
+              
+              <div className="font-serif text-lg sm:text-xl md:text-2xl text-[#0D3B66] leading-loose space-y-6 max-h-[70vh] overflow-y-auto px-4 selection:bg-[#CFC8FF] text-center">
+                <p>Dear Ruhi,</p>
+                <p>I know there are days when your books feel heavier than usual.</p>
+                <p>Days when you're exhausted, overwhelmed, or quietly hurting.</p>
+                <p>I know I can't always sit beside you during every late-night study session or every difficult exam.</p>
+                <p>So I built ROOH.</p>
+                <p>A place that reminds you to rest when you're tired.</p>
+                <p>A place that reminds you to keep going when you want to quit.</p>
+                <p>A place that reminds you that you are loved, even on the days you forget it yourself.</p>
+                <p>ROOH was never meant to be just a website.</p>
+                <p>It was meant to be a piece of my heart that stays with you when I cannot.</p>
+                <p className="pt-6 font-bold">— Tasbir 🤍</p>
+              </div>
+
+              <button
+                onClick={() => setIsWhyRoohOpen(false)}
+                className="mt-8 px-8 py-3 bg-[#0D3B66] text-white hover:bg-[#0c2e50] rounded-full font-sans text-sm font-bold transition-all shadow-md hover:shadow-lg"
+              >
+                Back to Sanctuary 🌸
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Decorative Blobs */}
       <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-[#CFC8FF]/25 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[10%] right-[-10%] w-[40vw] h-[40vw] bg-[#CCFFBC]/20 rounded-full blur-[100px] pointer-events-none" />
@@ -902,6 +1039,14 @@ export default function Dashboard() {
           </div>
           
           <div className="flex items-center gap-3 self-start sm:self-center">
+            {/* "Why ROOH Exists" Trigger element */}
+            <button
+              onClick={() => setIsWhyRoohOpen(true)}
+              className="flex items-center gap-2 bg-white/60 hover:bg-white/95 px-4 py-2 rounded-full border border-[#0D3B66]/5 shadow-sm text-xs font-bold transition-all text-[#0D3B66] font-sans"
+            >
+              Why ROOH Exists 🌙
+            </button>
+
             {/* Notification Request Perms button */}
             <button
               onClick={() => {
@@ -1283,6 +1428,9 @@ export default function Dashboard() {
                             setMedications(prev => prev.map(m => m.id === med.id ? { ...m, taken: !m.taken } : m));
                             if (!med.taken) {
                               triggerCelebration("Oshud khavar jonno proud of you, Doctor! 🌸");
+                              if (Math.random() < 0.25) {
+                                triggerSurpriseNote();
+                              }
                             }
                           }}
                           className="text-[#0D3B66] hover:scale-110 transition-transform shrink-0"
