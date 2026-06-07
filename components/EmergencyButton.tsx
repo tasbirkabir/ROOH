@@ -38,10 +38,26 @@ const COMFORT_DATABASE = [
 
 interface EmergencyButtonProps {
   visible?: boolean;
+  forceOpen?: boolean;
+  setForceOpen?: (val: boolean) => void;
 }
 
-export default function EmergencyButton({ visible = true }: EmergencyButtonProps) {
+export default function EmergencyButton({ visible = true, forceOpen, setForceOpen }: EmergencyButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (forceOpen !== undefined) {
+      setIsOpen(forceOpen);
+    }
+  }, [forceOpen]);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    if (setForceOpen) {
+      setForceOpen(false);
+    }
+  };
+
   const [currentComfort, setCurrentComfort] = useState(COMFORT_DATABASE[0]);
   const [breathingPhase, setBreathingPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale');
 
@@ -125,6 +141,8 @@ export default function EmergencyButton({ visible = true }: EmergencyButtonProps
             }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{
+              scale: { duration: 0.15, ease: "easeOut" },
+              opacity: { duration: 0.15, ease: "easeOut" },
               boxShadow: {
                 repeat: Infinity,
                 duration: 2,
@@ -160,7 +178,7 @@ export default function EmergencyButton({ visible = true }: EmergencyButtonProps
 
               {/* Close Button */}
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 className="absolute top-6 right-6 p-2 rounded-full hover:bg-[#0D3B66]/5 text-[#0D3B66]/60 hover:text-[#0D3B66] transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -225,7 +243,7 @@ export default function EmergencyButton({ visible = true }: EmergencyButtonProps
                   Show Me Something Else
                 </button>
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleClose}
                   className="py-3 px-5 rounded-2xl bg-[#0D3B66]/5 hover:bg-[#0D3B66]/10 text-[#0D3B66] font-sans font-semibold transition-all text-sm"
                 >
                   I feel better now, thank you
