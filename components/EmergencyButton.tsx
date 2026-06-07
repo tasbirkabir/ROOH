@@ -36,7 +36,11 @@ const COMFORT_DATABASE = [
   }
 ];
 
-export default function EmergencyButton() {
+interface EmergencyButtonProps {
+  visible?: boolean;
+}
+
+export default function EmergencyButton({ visible = true }: EmergencyButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentComfort, setCurrentComfort] = useState(COMFORT_DATABASE[0]);
   const [breathingPhase, setBreathingPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale');
@@ -101,37 +105,43 @@ export default function EmergencyButton() {
   return (
     <>
       {/* Floating Pulse Comfort Button */}
-      <motion.button
-        onClick={triggerComfort}
-        className="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-6 py-4 rounded-full bg-[#CFC8FF] text-[#0D3B66] font-serif text-lg font-bold shadow-lg shadow-[#CFC8FF]/30 hover:bg-[#b8aeff] transition-colors duration-300 border border-[#0D3B66]/10"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ 
-          opacity: 1, 
-          scale: 1,
-          boxShadow: [
-            "0px 10px 15px -3px rgba(207, 200, 255, 0.3)",
-            "0px 10px 25px 5px rgba(207, 200, 255, 0.5)",
-            "0px 10px 15px -3px rgba(207, 200, 255, 0.3)"
-          ]
-        }}
-        transition={{
-          boxShadow: {
-            repeat: Infinity,
-            duration: 2,
-            ease: "easeInOut"
-          }
-        }}
-      >
-        <motion.span
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-        >
-          <Heart className="w-5 h-5 fill-[#0D3B66] text-[#0D3B66]" />
-        </motion.span>
-        I Need Comfort
-      </motion.button>
+      <AnimatePresence>
+        {visible && (
+          <motion.button
+            key="emergency-trigger-btn"
+            onClick={triggerComfort}
+            className="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-6 py-4 rounded-full bg-[#CFC8FF] text-[#0D3B66] font-serif text-lg font-bold shadow-lg shadow-[#CFC8FF]/30 hover:bg-[#b8aeff] transition-colors duration-300 border border-[#0D3B66]/10"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1,
+              boxShadow: [
+                "0px 10px 15px -3px rgba(207, 200, 255, 0.3)",
+                "0px 10px 25px 5px rgba(207, 200, 255, 0.5)",
+                "0px 10px 15px -3px rgba(207, 200, 255, 0.3)"
+              ]
+            }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{
+              boxShadow: {
+                repeat: Infinity,
+                duration: 2,
+                ease: "easeInOut"
+              }
+            }}
+          >
+            <motion.span
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            >
+              <Heart className="w-5 h-5 fill-[#0D3B66] text-[#0D3B66]" />
+            </motion.span>
+            I Need Comfort
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Gentle Modal Overlay */}
       <AnimatePresence>

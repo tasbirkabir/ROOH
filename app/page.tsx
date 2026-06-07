@@ -2165,7 +2165,7 @@ export default function Dashboard() {
       </footer>
 
       {/* Floating Emergency Comfort Button (Module 7) */}
-      <EmergencyButton />
+      <EmergencyButton visible={!isWhyRoohOpen} />
     </div>
   );
 }
