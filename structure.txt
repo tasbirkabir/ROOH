@@ -1,0 +1,30 @@
+rooh/
+├── app/
+│   ├── layout.tsx                # Global Providers, Layout, Font Injection (Manrope & Cormorant)
+│   ├── page.tsx                  # Core Dashboard Layout (Modules 1, 4, 11)
+│   ├── planner/
+│   │   └── page.tsx              # Study Planner Workspace (Module 2)
+│   ├── focus/
+│   │   └── page.tsx              # Pomodoro / Custom Timer Hub (Module 3)
+│   ├── vault/
+│   │   └── page.tsx              # Comfort Vault Filterable Grid (Module 5)
+│   ├── archive/
+│   │   └── page.tsx              # Memory Wall Private Locker (Module 6)
+│   ├── wellness/
+│   │   └── page.tsx              # Analytics, Sleep, Hydration Hub (Modules 10, 13)
+│   └── tasbir-corner/
+│       └── page.tsx              # Exclusive Conditional Letters (Module 14)
+├── components/
+│   ├── ui/                       # Reusable Minimalist Design Elements
+│   │   ├── Button.tsx
+│   │   └── Card.tsx
+│   ├── EmergencyButton.tsx       # "I Need Comfort" Component (Module 7)
+│   ├── MoodSelector.tsx          # Interactive Mood Engine (Module 4)
+│   ├── AudioSoundboard.tsx       # Audio loops mixer (Module 12)
+│   └── CountdownCard.tsx         # Exam Timelines Visualizer (Module 8)
+├── hooks/
+│   ├── useSupabase.ts            # Client Auth & Mutation Hooks
+│   └── useTimer.ts               # Custom Core Focused Web Timer Engine
+└── lib/
+    ├── supabaseClient.ts         # Supabase SDK Entry Initialize
+    └── utils.ts                  # Tailwind Merge Helper Matrix
