@@ -86,6 +86,65 @@ export default function Dashboard() {
   const [isWhyRoohOpen, setIsWhyRoohOpen] = useState(false);
   const [activeSurpriseNote, setActiveSurpriseNote] = useState<string | null>(null);
 
+  // 5. Dynamic Countdown Configurations
+  const [countdownTitle, setCountdownTitle] = useState("Anatomy Final Exam");
+  const [countdownDate, setCountdownDate] = useState("");
+  const [countdownSubtitle, setCountdownSubtitle] = useState("Gross Anatomy & Embryology Review");
+  const [isConfiguringCountdown, setIsConfiguringCountdown] = useState(false);
+
+  const [editCountdownTitle, setEditCountdownTitle] = useState("Anatomy Final Exam");
+  const [editCountdownSubtitle, setEditCountdownSubtitle] = useState("Gross Anatomy & Embryology Review");
+  const [editCountdownDate, setEditCountdownDate] = useState("");
+
+  const toLocalDatetimeString = (isoString: string) => {
+    if (!isoString) return "";
+    try {
+      const date = new Date(isoString);
+      const tzOffset = date.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
+      return localISOTime;
+    } catch (e) {
+      return "";
+    }
+  };
+
+  // Load countdown values from LocalStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTitle = localStorage.getItem('rooh_countdown_title');
+      const savedDate = localStorage.getItem('rooh_countdown_date');
+      const savedSub = localStorage.getItem('rooh_countdown_subtitle');
+      if (savedTitle) {
+        setCountdownTitle(savedTitle);
+        setEditCountdownTitle(savedTitle);
+      }
+      if (savedDate) {
+        setCountdownDate(savedDate);
+        setEditCountdownDate(toLocalDatetimeString(savedDate));
+      } else {
+        const defaultDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 2.8).toISOString();
+        setCountdownDate(defaultDate);
+        setEditCountdownDate(toLocalDatetimeString(defaultDate));
+      }
+      if (savedSub) {
+        setCountdownSubtitle(savedSub);
+        setEditCountdownSubtitle(savedSub);
+      }
+    }
+  }, []);
+
+  const handleSaveCountdown = (title: string, dateStr: string, subtitle: string) => {
+    setCountdownTitle(title);
+    setCountdownDate(dateStr);
+    setCountdownSubtitle(subtitle);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_countdown_title', title);
+      localStorage.setItem('rooh_countdown_date', dateStr);
+      localStorage.setItem('rooh_countdown_subtitle', subtitle);
+    }
+    setIsConfiguringCountdown(false);
+  };
+
   // Affirmation Matrix & Ultra-Rare Notes Setup
   const SURPRISE_NOTES = [
     "Just checking in. Have you had water today? 🌸",
@@ -1182,12 +1241,96 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Dynamic urgencies CountdownCard (Module 8) */}
-              <CountdownCard 
-                title="Anatomy Final Exam" 
-                targetDate={new Date(Date.now() + 1000 * 60 * 60 * 24 * 2.8).toISOString()} // 2.8 days out (triggers alert style)
-                subtitle="Gross Anatomy & Embryology Review"
-              />
+              {/* Dynamic Milestone & Countdown Injection Configurator */}
+              <div className="relative group flex flex-col gap-2">
+                <CountdownCard 
+                  title={countdownTitle} 
+                  targetDate={countdownDate || new Date(Date.now() + 1000 * 60 * 60 * 24 * 2.8).toISOString()}
+                  subtitle={countdownSubtitle}
+                />
+                
+                {/* Settings Toggle Link/Icon at the bottom of the card block */}
+                <div className="flex justify-end pr-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsConfiguringCountdown(!isConfiguringCountdown)}
+                    className="text-[10px] uppercase font-bold tracking-wider text-[#0D3B66]/60 hover:text-[#0D3B66] transition-colors flex items-center gap-1 font-sans"
+                  >
+                    ⚙️ Configure Deadline
+                  </button>
+                </div>
+
+                {/* Compact Edit Form expansion */}
+                <AnimatePresence>
+                  {isConfiguringCountdown && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-white/95 border border-[#0D3B66]/10 rounded-2xl p-4 space-y-3 font-sans shadow-md"
+                    >
+                      <h4 className="font-serif text-sm font-bold text-[#0D3B66]">Set Custom Target Event</h4>
+                      
+                      <div className="space-y-2 text-xs">
+                        <div>
+                          <label className="block font-bold text-gray-500 mb-1">Event/Exam Name</label>
+                          <input 
+                            type="text" 
+                            value={editCountdownTitle}
+                            onChange={(e) => setEditCountdownTitle(e.target.value)}
+                            placeholder="e.g., Anatomy Final Exam"
+                            className="w-full py-1.5 px-3 rounded-lg border border-gray-200 focus:outline-none bg-white text-[#0D3B66] font-sans"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block font-bold text-gray-500 mb-1">Subtitle / Details</label>
+                          <input 
+                            type="text" 
+                            value={editCountdownSubtitle}
+                            onChange={(e) => setEditCountdownSubtitle(e.target.value)}
+                            placeholder="e.g., Gross Anatomy & Embryology Review"
+                            className="w-full py-1.5 px-3 rounded-lg border border-gray-200 focus:outline-none bg-white text-[#0D3B66] font-sans"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-500 mb-1">Target Date & Time</label>
+                          <input 
+                            type="datetime-local" 
+                            value={editCountdownDate}
+                            onChange={(e) => setEditCountdownDate(e.target.value)}
+                            className="w-full py-1.5 px-3 rounded-lg border border-gray-200 focus:outline-none bg-white text-[#0D3B66] font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 justify-end text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setIsConfiguringCountdown(false)}
+                          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            let formattedDate = editCountdownDate;
+                            if (editCountdownDate) {
+                              formattedDate = new Date(editCountdownDate).toISOString();
+                            }
+                            handleSaveCountdown(editCountdownTitle, formattedDate, editCountdownSubtitle);
+                          }}
+                          className="px-3 py-1.5 bg-[#0D3B66] text-white hover:bg-[#0c2e50] rounded-lg font-bold"
+                        >
+                          Save Deadline
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
             </div>
 
