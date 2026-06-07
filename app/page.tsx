@@ -106,7 +106,9 @@ export default function Dashboard() {
   // 8. Bad Day Protocol State Machine
   const [showBadDayModal, setShowBadDayModal] = useState(false);
   const [badDayProtocolActive, setBadDayProtocolActive] = useState(false);
+  const [activeMoodState, setActiveMoodState] = useState<string | null>(null);
   const [forceComfortOpen, setForceComfortOpen] = useState(false);
+  const [greeting, setGreeting] = useState("Hello, Ruhi 🌸");
 
   const BAD_DAY_COMFORT_NOTES = [
     "Jaan, you don't have to be perfect. You just have to take care of yourself. I am here for you. 🤍",
@@ -135,13 +137,20 @@ export default function Dashboard() {
     }
   };
 
+  // 9. Study hours goal & countdown timer variables
+  const [studyHoursGoal, setStudyHoursGoal] = useState(4); // Target study hours goal
+  const [secondsRemaining, setSecondsRemaining] = useState(4 * 3600);
+  const [timerActive, setTimerActive] = useState(false);
+  const [totalElapsedSeconds, setTotalElapsedSeconds] = useState(0);
+
   // Load configuration details from LocalStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Countdown
+      // Countdown date restoration/persistence check
       const savedTitle = localStorage.getItem('rooh_countdown_title');
       const savedDate = localStorage.getItem('rooh_countdown_date');
       const savedSub = localStorage.getItem('rooh_countdown_subtitle');
+      
       if (savedTitle) {
         setCountdownTitle(savedTitle);
         setEditCountdownTitle(savedTitle);
@@ -153,6 +162,7 @@ export default function Dashboard() {
         const defaultDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 2.8).toISOString();
         setCountdownDate(defaultDate);
         setEditCountdownDate(toLocalDatetimeString(defaultDate));
+        localStorage.setItem('rooh_countdown_date', defaultDate); // Prevent reset on tab reboot
       }
       if (savedSub) {
         setCountdownSubtitle(savedSub);
@@ -168,6 +178,58 @@ export default function Dashboard() {
           console.error("Error loading discovered eggs", e);
         }
       }
+
+      // Bad Day Protocol states restoration
+      const savedProtocol = localStorage.getItem('rooh_bad_day_protocol_active') === 'true';
+      const savedMood = localStorage.getItem('rooh_active_mood_state');
+      if (savedProtocol) {
+        setBadDayProtocolActive(true);
+      }
+      if (savedMood) {
+        setActiveMoodState(savedMood);
+      }
+    }
+  }, []);
+
+  // 10. Timestamp-Based Session Recovery Math
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedGoal = localStorage.getItem('rooh_study_hours_goal');
+      const savedActive = localStorage.getItem('rooh_study_timer_active') === 'true';
+      const savedSecs = localStorage.getItem('rooh_study_seconds_remaining');
+      const savedSync = localStorage.getItem('rooh_study_last_sync_time');
+
+      let goalHours = 4;
+      if (savedGoal) {
+        goalHours = parseInt(savedGoal, 10);
+        setStudyHoursGoal(goalHours);
+      }
+
+      let currentRemaining = goalHours * 3600;
+      if (savedSecs) {
+        currentRemaining = parseInt(savedSecs, 10);
+      }
+
+      if (savedActive && savedSync) {
+        const elapsed = Math.floor((Date.now() - parseInt(savedSync, 10)) / 1000);
+        currentRemaining = Math.max(0, currentRemaining - elapsed);
+        if (currentRemaining > 0) {
+          setTimerActive(true);
+        } else {
+          setTimerActive(false);
+          currentRemaining = 0;
+          // Completed while browser was closed - trigger alerts and achievements
+          sendNativeNotification("ROOH Sanctuary 🧠", "done jaan eibar amar kase asho");
+          triggerCelebration(getRandomAffirmation());
+          triggerSurpriseNote();
+          updateWellnessMetric('study_streak', 1);
+          localStorage.setItem('rooh_study_timer_active', 'false');
+        }
+      } else {
+        setTimerActive(false);
+      }
+      setSecondsRemaining(currentRemaining);
+      setTotalElapsedSeconds((goalHours * 3600) - currentRemaining);
     }
   }, []);
 
@@ -179,6 +241,29 @@ export default function Dashboard() {
     };
     checkMoonMode();
     const interval = setInterval(checkMoonMode, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const getGreetingText = (hour: number) => {
+      if (hour >= 22 || hour < 5) {
+        return Math.random() > 0.5 
+          ? "Burning the midnight oil again, future doctor? 🌙" 
+          : "Another late-night study session? I'm rooting for you.";
+      }
+      if (hour >= 5 && hour < 12) return "Good Morning, Ruhi 🌅";
+      if (hour >= 12 && hour < 17) return "Good Afternoon, Ruhi ☀️";
+      if (hour >= 17 && hour < 22) return "Good Evening, Ruhi 🌙";
+      return "Good Night, Ruhi 🌌";
+    };
+
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      setGreeting(getGreetingText(hour));
+    };
+
+    updateGreeting();
+    const interval = setInterval(updateGreeting, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -459,12 +544,6 @@ export default function Dashboard() {
   // Planner States
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskSubject, setNewTaskSubject] = useState<'Anatomy' | 'Physiology' | 'Biochemistry' | 'Pathology' | 'Pharmacology' | 'Medicine' | 'Surgery'>('Anatomy');
-
-  // Study hours goal & countdown timer variables
-  const [studyHoursGoal, setStudyHoursGoal] = useState(4); // Target study hours goal
-  const [secondsRemaining, setSecondsRemaining] = useState(4 * 3600);
-  const [timerActive, setTimerActive] = useState(false);
-  const [totalElapsedSeconds, setTotalElapsedSeconds] = useState(0);
 
   // Client layout helper states
   const [activeMoodResponse, setActiveMoodResponse] = useState<string | null>(null);
@@ -786,42 +865,44 @@ export default function Dashboard() {
     }
   };
 
-  // 5. Time-Aware Greeting Lifecycle Loop (10s checks to instantly sync night mode swaps)
-  const [greeting, setGreeting] = useState("Hello, Ruhi 🌸");
-
-  useEffect(() => {
-    const getGreetingText = (hour: number) => {
-      if (hour >= 22 || hour < 5) {
-        return Math.random() > 0.5 
-          ? "Burning the midnight oil again, future doctor? 🌙" 
-          : "Another late-night study session? I'm rooting for you.";
-      }
-      if (hour >= 5 && hour < 12) return "Good Morning, Ruhi 🌅";
-      if (hour >= 12 && hour < 17) return "Good Afternoon, Ruhi ☀️";
-      if (hour >= 17 && hour < 22) return "Good Evening, Ruhi 🌙";
-      return "Good Night, Ruhi 🌌";
-    };
-
-    const updateGreeting = () => {
-      const hour = new Date().getHours();
-      setGreeting(getGreetingText(hour));
-    };
-
-    updateGreeting();
-    const interval = setInterval(updateGreeting, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // 6. Active Study Session Countdown Timer & Push Pipeline
+  // 5. Active Study Session Countdown Timer Ticker with Unix Timestamp Persistence
   const adjustStudyGoal = (amount: number) => {
     const nextGoal = Math.max(1, Math.min(24, studyHoursGoal + amount));
     setStudyHoursGoal(nextGoal);
     setSecondsRemaining(nextGoal * 3600);
     setTotalElapsedSeconds(0);
     setTimerActive(false);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_study_hours_goal', String(nextGoal));
+      localStorage.setItem('rooh_study_seconds_remaining', String(nextGoal * 3600));
+      localStorage.setItem('rooh_study_timer_active', 'false');
+    }
   };
 
-  // Precision Ticker Interval Loop (Automated notifications in the background)
+  const handleToggleTimer = () => {
+    const nextActive = !timerActive;
+    setTimerActive(nextActive);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_study_timer_active', String(nextActive));
+      localStorage.setItem('rooh_study_last_sync_time', String(Date.now()));
+      localStorage.setItem('rooh_study_seconds_remaining', String(secondsRemaining));
+    }
+  };
+
+  const handleResetTimer = () => {
+    setTimerActive(false);
+    setSecondsRemaining(studyHoursGoal * 3600);
+    setTotalElapsedSeconds(0);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_study_timer_active', 'false');
+      localStorage.setItem('rooh_study_seconds_remaining', String(studyHoursGoal * 3600));
+    }
+  };
+
+  // Precision Ticker Interval Loop with absolute Timestamp persistence
   useEffect(() => {
     let intervalId: any = null;
     if (timerActive) {
@@ -830,6 +911,9 @@ export default function Dashboard() {
           if (prev <= 1) {
             clearInterval(intervalId);
             setTimerActive(false);
+            localStorage.setItem('rooh_study_timer_active', 'false');
+            localStorage.setItem('rooh_study_seconds_remaining', '0');
+
             if (!badDayProtocolActive) {
               sendNativeNotification("ROOH Sanctuary 🧠", "done jaan eibar amar kase asho");
               // Trigger celebration overlay on goal completion
@@ -843,6 +927,9 @@ export default function Dashboard() {
           }
           
           const next = prev - 1;
+          localStorage.setItem('rooh_study_seconds_remaining', String(next));
+          localStorage.setItem('rooh_study_last_sync_time', String(Date.now()));
+
           const elapsed = (studyHoursGoal * 3600) - next;
           setTotalElapsedSeconds(elapsed);
 
@@ -1017,6 +1104,51 @@ export default function Dashboard() {
     ? "bg-white/10 border-white/20 text-[#FFFDF7] placeholder-white/40 focus:ring-1 focus:ring-white/30"
     : "bg-white border-gray-200 text-[#0D3B66] placeholder-gray-400/85 focus:ring-1 focus:ring-[#0D3B66]/30";
 
+  // Bad Day Protocol dynamic mapping payload calculations
+  let badDayMainMessage = "It's okay. Today doesn't have to be productive. You don't have to carry everything today.";
+  let badDayActionPrompt = null;
+
+  if (activeMoodState === 'Sad') {
+    badDayMainMessage = "It's okay to cry, doctor. Your emotions are valid, and you don't have to be strong every single second.";
+    badDayActionPrompt = (
+      <div className="mt-6 p-4 rounded-2xl bg-[#CFC8FF]/20 border border-[#CFC8FF]/30 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <span className="text-xs font-bold opacity-80 font-serif">Comfort Tip: Play Tasbir's 3 AM Voice Letter.</span>
+        <button
+          onClick={() => playAudioLetter('/audio/lonely_comfort.mp3', 'lonely')}
+          className="px-4 py-1.5 bg-[#0D3B66] text-white hover:bg-[#0c2e50] text-xs font-bold rounded-xl transition-all cursor-pointer font-sans"
+        >
+          🔊 Play Voice Note
+        </button>
+      </div>
+    );
+  } else if (activeMoodState === 'Stressed') {
+    badDayMainMessage = "Take a deep breath. Your exams and textbooks do not define your worth. Let's just focus on the very next step together.";
+    badDayActionPrompt = (
+      <div className="mt-6 p-4 rounded-2xl bg-[#CCFFBC]/20 border border-[#CCFFBC]/30 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <span className="text-xs font-bold opacity-80 font-serif">Breathing Guide: Launch the automated 4-4-4 Box Breathing visual guide.</span>
+        <button
+          onClick={() => setForceComfortOpen(true)}
+          className="px-4 py-1.5 bg-[#0D3B66] text-white hover:bg-[#0c2e50] text-xs font-bold rounded-xl transition-all cursor-pointer font-sans"
+        >
+          🌬️ Start Box Breathing
+        </button>
+      </div>
+    );
+  } else if (activeMoodState === 'Lonely') {
+    badDayMainMessage = "Close your eyes for a second. Distance means nothing because my heart is right there beating next to yours. You are never alone.";
+    badDayActionPrompt = (
+      <div className="mt-6 p-4 rounded-2xl bg-[#CFC8FF]/20 border border-[#CFC8FF]/30 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <span className="text-xs font-bold opacity-80 font-serif">Surprise: Open a rare dynamic surprise note from Tasbir.</span>
+        <button
+          onClick={triggerSurpriseNote}
+          className="px-4 py-1.5 bg-[#0D3B66] text-white hover:bg-[#0c2e50] text-xs font-bold rounded-xl transition-all cursor-pointer font-sans"
+        >
+          💌 Open Surprise Note
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${canvasBgClass} ${textColorClass} font-sans pb-24 relative overflow-x-hidden selection:bg-[#CFC8FF] flex flex-col transition-colors duration-500`}>
       
@@ -1181,7 +1313,9 @@ export default function Dashboard() {
                 <button
                   onClick={() => {
                     setTimerActive(false); // Force stop academic study timer
+                    localStorage.setItem('rooh_study_timer_active', 'false');
                     setBadDayProtocolActive(true);
+                    localStorage.setItem('rooh_bad_day_protocol_active', 'true');
                     setShowBadDayModal(false);
                   }}
                   className="flex-1 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl transition-all"
@@ -1393,14 +1527,17 @@ export default function Dashboard() {
                 </div>
 
                 <h2 className="font-serif text-2xl md:text-3xl font-extrabold mb-4 leading-normal">
-                  It's okay. Today doesn't have to be productive. You don't have to carry everything today.
+                  {badDayMainMessage}
                 </h2>
+
+                {/* Dynamic 3-Tier Mood Condition Payload Actions */}
+                {badDayActionPrompt}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch pt-6 border-t border-[#CFC8FF]/20 mt-6">
-                  {/* Left side: Random comforting note history cycling */}
+                  {/* Left side: Random comforting note history cycling (BADGE CONTRAST PATCHED) */}
                   <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/20 text-left flex flex-col justify-between">
                     <div>
-                      <span className="text-[10px] uppercase font-bold tracking-widest text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded font-sans">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-[#0D3B66] bg-[#CFC8FF] px-2.5 py-0.5 rounded-full font-sans">
                         Tasbir's Comfort Log 🤍
                       </span>
                       <p className="font-serif text-base italic leading-relaxed mt-4">
@@ -1415,9 +1552,9 @@ export default function Dashboard() {
                     </button>
                   </div>
                   
-                  {/* Right side: Emergency Water check */}
+                  {/* Right side: Emergency Water check (BADGE CONTRAST PATCHED) */}
                   <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/20 text-center flex flex-col items-center justify-center">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-sky-300 bg-sky-900/30 px-2 py-0.5 rounded font-sans">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#0D3B66] bg-[#CCFFBC] px-2.5 py-0.5 rounded-full font-sans">
                       Self-Care Check 💧
                     </span>
                     <p className="font-serif text-lg font-semibold mt-4 mb-3">
@@ -1455,7 +1592,7 @@ export default function Dashboard() {
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="px-8 py-5 rounded-full bg-[#CFC8FF] text-[#0D3B66] font-serif text-xl font-bold border-2 border-[#0D3B66]/10 shadow-lg cursor-pointer"
+                    className="px-8 py-5 rounded-full bg-[#CFC8FF] text-[#0D3B66] font-serif text-xl font-bold border-2 border-[#0D3B66]/10 shadow-lg cursor-pointer animate-pulse"
                   >
                     ❤️ I Need Comfort ❤️
                   </motion.button>
@@ -1469,7 +1606,10 @@ export default function Dashboard() {
                   <span className="text-xs font-bold font-sans">Ready to continue studies? 🌸</span>
                   <div className="flex gap-3 w-full sm:w-auto font-sans">
                     <button
-                      onClick={() => setBadDayProtocolActive(false)}
+                      onClick={() => {
+                        setBadDayProtocolActive(false);
+                        localStorage.setItem('rooh_bad_day_protocol_active', 'false');
+                      }}
                       className="flex-1 sm:flex-initial px-6 py-2 bg-[#CCFFBC] hover:bg-[#b0eaa5] text-[#0D3B66] text-xs font-bold rounded-xl transition-all cursor-pointer"
                     >
                       Back To Studies
@@ -1525,14 +1665,14 @@ export default function Dashboard() {
                     {/* Timer Controls */}
                     <div className="flex items-center gap-2 mb-3">
                       <button
-                        onClick={() => setTimerActive(!timerActive)}
+                        onClick={handleToggleTimer}
                         className={`p-2 rounded-full transition-colors ${timerActive ? 'bg-amber-100 hover:bg-amber-200 text-amber-700' : 'bg-[#CCFFBC] hover:bg-[#b0eaa5] text-[#0D3B66]'}`}
                       >
                         {timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                       </button>
                       <button
-                        onClick={() => { setTimerActive(false); setSecondsRemaining(studyHoursGoal * 3600); setTotalElapsedSeconds(0); }}
-                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                        onClick={handleResetTimer}
+                        className="p-2 bg-gray-100/15 hover:bg-gray-200/30 rounded-full transition-colors text-inherit border border-gray-200/10"
                       >
                         <RotateCcw className="w-4 h-4" />
                       </button>
@@ -1770,6 +1910,12 @@ export default function Dashboard() {
                           supabase.from('mood_logs').insert({ user_id: userId, mood: m.name, note: 'Dashboard Log' });
                         }
                         setActiveMoodResponse(MOOD_RESPONSES[m.name] || "We're here for you.");
+                        
+                        // Dynamic Bad Day protocol trigger setup
+                        setActiveMoodState(m.name);
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('rooh_active_mood_state', m.name);
+                        }
                         if (['Sad', 'Stressed', 'Lonely'].includes(m.name)) {
                           setShowBadDayModal(true);
                         }
