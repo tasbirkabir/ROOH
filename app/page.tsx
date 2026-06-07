@@ -183,22 +183,28 @@ export default function Dashboard() {
   }, [isPlaying, activeAudioLetter, currentAudio, audioDuration]);
 
   // Medication Routine Scheduler States
-  const [medications, setMedications] = useState<{ id: string; name: string; time: string; taken: boolean }[]>(() => {
+  const [medications, setMedications] = useState<{ id: string; name: string; time: string; taken: boolean }[]>([]);
+
+  // Load medications from localStorage on client-side mount
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('rooh_medications');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          setMedications(JSON.parse(saved));
         } catch (e) {
           console.error("Error parsing medications", e);
         }
+      } else {
+        const defaults = [
+          { id: '1', name: 'Multivitamin', time: '08:00 AM', taken: false },
+          { id: '2', name: 'Iron Supplement', time: '10:00 PM', taken: false }
+        ];
+        setMedications(defaults);
+        localStorage.setItem('rooh_medications', JSON.stringify(defaults));
       }
     }
-    return [
-      { id: '1', name: 'Multivitamin', time: '08:00 AM', taken: false },
-      { id: '2', name: 'Iron Supplement', time: '10:00 PM', taken: false }
-    ];
-  });
+  }, []);
 
   const [newMedName, setNewMedName] = useState('');
   const [newMedTime, setNewMedTime] = useState('08:00 AM');
