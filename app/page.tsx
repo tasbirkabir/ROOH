@@ -43,6 +43,11 @@ export default function Dashboard() {
   // 1. User Authentication Session Tracker
   const [userId, setUserId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
+  
+  // 2. Defensive Database Schema Columns List (Fetched on mount to verify columns exist before upsert)
+  const [dbColumns, setDbColumns] = useState<string[]>([
+    'user_id', 'log_date', 'water_glasses', 'water_goal', 'sleep_hours', 'breaks_taken', 'study_streak', 'steps'
+  ]);
 
   useEffect(() => {
     const getOrCreateUser = async () => {
@@ -69,7 +74,7 @@ export default function Dashboard() {
     getOrCreateUser();
   }, []);
 
-  // 2. Real-time Synchronized States (Shortened names to match production spec)
+  // 3. Real-time Synchronized States (Shortened names to match production spec)
   const [streak, setStreak] = useState(12);
   const [water, setWater] = useState(0);
   const [waterGoal, setWaterGoal] = useState<number>(8);
@@ -77,16 +82,16 @@ export default function Dashboard() {
   const [breaks, setBreaks] = useState(0);
   const [tasks, setTasks] = useState<any[]>([]);
 
-  // 3. Experiential Interactive Expansion States
+  // 4. Experiential Interactive Expansion States
   const [stickyNote, setStickyNote] = useState('');
   const [confetti, setConfetti] = useState<{ id: number; x: number; color: string }[]>([]);
   const [celebrationMessage, setCelebrationMessage] = useState<string | null>(null);
 
-  // 4. Emotional Journey States
+  // 5. Emotional Journey States
   const [isWhyRoohOpen, setIsWhyRoohOpen] = useState(false);
   const [activeSurpriseNote, setActiveSurpriseNote] = useState<string | null>(null);
 
-  // 5. Dynamic Countdown Configurations
+  // 6. Dynamic Countdown Configurations
   const [countdownTitle, setCountdownTitle] = useState("Anatomy Final Exam");
   const [countdownDate, setCountdownDate] = useState("");
   const [countdownSubtitle, setCountdownSubtitle] = useState("Gross Anatomy & Embryology Review");
@@ -96,19 +101,18 @@ export default function Dashboard() {
   const [editCountdownSubtitle, setEditCountdownSubtitle] = useState("Gross Anatomy & Embryology Review");
   const [editCountdownDate, setEditCountdownDate] = useState("");
 
-  // 6. Hidden Notes (Easter Eggs) & Achievement Matrix
+  // 7. Hidden Notes (Easter Eggs) & Achievement Matrix
   const [discoveredEggs, setDiscoveredEggs] = useState<string[]>([]);
   const [activeEggToast, setActiveEggToast] = useState<{ id: string; content: string } | null>(null);
 
-  // 7. Dynamic Moon Mode Engine
+  // 8. Dynamic Moon Mode Engine
   const [isMoonMode, setIsMoonMode] = useState(false);
 
-  // 8. Bad Day Protocol State Machine
+  // 9. Bad Day Protocol State Machine
   const [showBadDayModal, setShowBadDayModal] = useState(false);
   const [badDayProtocolActive, setBadDayProtocolActive] = useState(false);
   const [activeMoodState, setActiveMoodState] = useState<string | null>(null);
   const [forceComfortOpen, setForceComfortOpen] = useState(false);
-  const [greeting, setGreeting] = useState("Hello, Ruhi 🌸");
 
   const BAD_DAY_COMFORT_NOTES = [
     "Jaan, you don't have to be perfect. You just have to take care of yourself. I am here for you. 🤍",
@@ -137,36 +141,372 @@ export default function Dashboard() {
     }
   };
 
-  // 9. Study hours goal & countdown timer variables
+  // 10. Study hours goal & countdown timer variables
   const [studyHoursGoal, setStudyHoursGoal] = useState(4); // Target study hours goal
   const [secondsRemaining, setSecondsRemaining] = useState(4 * 3600);
   const [timerActive, setTimerActive] = useState(false);
   const [totalElapsedSeconds, setTotalElapsedSeconds] = useState(0);
 
-  // Load configuration details from LocalStorage on mount
+  // 11. Medication Routine Scheduler States
+  const [medications, setMedications] = useState<{ id: string; name: string; time: string; taken: boolean }[]>([]);
+
+  // Seeded Daily Content Rotator
+  const [dailyData, setDailyData] = useState({
+    affirmation: "You are enough, Ruhi. One step is still progress.",
+    comfortCard: {
+      category: "Study Stress",
+      title: "The Books Will Wait 📚",
+      content: "If the anatomy diagrams are blurring, close the book. Rest is productive."
+    }
+  });
+
+  useEffect(() => {
+    const daily = getDailyContent();
+    setDailyData({
+      affirmation: daily.affirmation,
+      comfortCard: daily.comfortCard
+    });
+  }, []);
+
+  const handleSaveCountdown = (title: string, dateStr: string, subtitle: string) => {
+    setCountdownTitle(title);
+    setCountdownDate(dateStr);
+    setCountdownSubtitle(subtitle);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_countdown_title', title);
+      localStorage.setItem('rooh_countdown_date', dateStr);
+      localStorage.setItem('rooh_countdown_subtitle', subtitle);
+    }
+    setIsConfiguringCountdown(false);
+  };
+
+  const triggerCelebration = (message: string) => {
+    setCelebrationMessage(message);
+    const newConfetti = Array.from({ length: 40 }).map((_, i) => ({
+      id: Math.random() + i,
+      x: Math.random() * 100, // percentage width
+      color: Math.random() > 0.5 ? '#CFC8FF' : '#CCFFBC', // Lavender or Mint
+    }));
+    setConfetti(newConfetti);
+    setTimeout(() => {
+      setConfetti([]);
+    }, 4000);
+  };
+
+  const sendNativeNotification = (title: string, message: string) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      console.warn(`[Push Mock] ${title}: ${message}`);
+      return;
+    }
+
+    const options = {
+      body: message,
+      tag: "medication-reminder",
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [300, 100, 300]
+    };
+
+    if (Notification.permission === 'granted') {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((registration) => {
+          registration.showNotification(title, options)
+            .catch(err => {
+              console.warn("SW Notification failed, using fallback:", err);
+              new Notification(title, options);
+            });
+        }).catch(() => {
+          new Notification(title, options);
+        });
+      } else {
+        new Notification(title, options);
+      }
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then((permission) => {
+        setHasPushPermission(permission === 'granted');
+        if (permission === 'granted') {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then((registration) => {
+              registration.showNotification(title, options);
+            }).catch(() => {
+              new Notification(title, options);
+            });
+          } else {
+            new Notification(title, options);
+          }
+        }
+      });
+    } else {
+      console.warn(`[Push Blocked] ${title}: ${message}`);
+    }
+  };
+
+  const adjustStudyGoal = (amount: number) => {
+    const nextGoal = Math.max(1, Math.min(24, studyHoursGoal + amount));
+    setStudyHoursGoal(nextGoal);
+    setSecondsRemaining(nextGoal * 3600);
+    setTotalElapsedSeconds(0);
+    setTimerActive(false);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_study_hours_goal', String(nextGoal));
+      localStorage.setItem('rooh_study_seconds_remaining', String(nextGoal * 3600));
+      localStorage.setItem('rooh_study_timer_active', 'false');
+    }
+  };
+
+  const handleToggleTimer = () => {
+    const nextActive = !timerActive;
+    setTimerActive(nextActive);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_study_timer_active', String(nextActive));
+      localStorage.setItem('rooh_study_last_sync_time', String(Date.now()));
+      localStorage.setItem('rooh_study_seconds_remaining', String(secondsRemaining));
+    }
+  };
+
+  const handleResetTimer = () => {
+    setTimerActive(false);
+    setSecondsRemaining(studyHoursGoal * 3600);
+    setTotalElapsedSeconds(0);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rooh_study_timer_active', 'false');
+      localStorage.setItem('rooh_study_seconds_remaining', String(studyHoursGoal * 3600));
+    }
+  };
+
+  // Precision Ticker Interval Loop with absolute Timestamp persistence
+  useEffect(() => {
+    let intervalId: any = null;
+    if (timerActive) {
+      intervalId = setInterval(() => {
+        setSecondsRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(intervalId);
+            setTimerActive(false);
+            localStorage.setItem('rooh_study_timer_active', 'false');
+            localStorage.setItem('rooh_study_seconds_remaining', '0');
+
+            if (!badDayProtocolActive) {
+              sendNativeNotification("ROOH Sanctuary 🧠", "done jaan eibar amar kase asho");
+              triggerCelebration(getRandomAffirmation());
+              triggerSurpriseNote();
+              updateWellnessMetric('study_streak', 1);
+            }
+            return 0;
+          }
+          
+          const next = prev - 1;
+          localStorage.setItem('rooh_study_seconds_remaining', String(next));
+          localStorage.setItem('rooh_study_last_sync_time', String(Date.now()));
+
+          const elapsed = (studyHoursGoal * 3600) - next;
+          setTotalElapsedSeconds(elapsed);
+
+          if (elapsed === 3600 && !badDayProtocolActive) {
+            sendNativeNotification("ROOH Sanctuary 🌙", "I love you ruhi");
+          }
+
+          return next;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [timerActive, studyHoursGoal, badDayProtocolActive]);
+
+  const formatTimerString = () => {
+    const hrs = Math.floor(secondsRemaining / 3600);
+    const mins = Math.floor((secondsRemaining % 3600) / 60);
+    const secs = secondsRemaining % 60;
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const handleWaterGoalChange = (val: number) => {
+    const cleanVal = Math.max(1, val);
+    setWaterGoal(cleanVal);
+    localStorage.setItem('rooh_water_goal', String(cleanVal));
+    updateWellnessMetric('water_goal', cleanVal);
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    const newTask = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: newTaskTitle,
+      subject: newTaskSubject,
+      is_completed: false,
+      created_at: new Date().toISOString()
+    };
+
+    setTasks(prev => [newTask, ...prev]);
+    setNewTaskTitle('');
+
+    if (!userId) return;
+
+    try {
+      setSyncStatus('syncing');
+      const { error } = await supabase.from('tasks').insert({
+        user_id: userId,
+        title: newTask.title,
+        subject: newTask.subject,
+        is_completed: false
+      });
+      if (error) throw error;
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('offline');
+    }
+  };
+
+  const handleToggleTask = async (id: string, is_completed: boolean) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, is_completed } : t));
+
+    if (is_completed) {
+      triggerCelebration(getRandomAffirmation());
+      if (Math.random() < 0.25) {
+        triggerSurpriseNote();
+      }
+    }
+
+    if (!userId) return;
+
+    try {
+      setSyncStatus('syncing');
+      const { error } = await supabase.from('tasks').update({ is_completed }).eq('id', id);
+      if (error) throw error;
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('offline');
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+
+    if (!userId) return;
+
+    try {
+      setSyncStatus('syncing');
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('offline');
+    }
+  };
+
+  const toggleSound = (sound: string) => {
+    setActiveSounds(prev => ({ ...prev, [sound]: !prev[sound] }));
+  };
+
+  const handleSendAiPrompt = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiPrompt.trim()) return;
+    const userMsg = aiPrompt;
+    setAiPrompt('');
+    setAiChatLog(prev => [...prev, { sender: 'User', text: userMsg }]);
+
+    setTimeout(() => {
+      let reply = "That's a vital medical concept. Let me check the textbook definitions...";
+      if (userMsg.toLowerCase().includes('heart') || userMsg.toLowerCase().includes('cardio')) {
+        reply = "The heart acts as a pump in the cardiovascular system. Left ventricle output is SV × HR. Remember, preload and afterload regulate this output!";
+      } else if (userMsg.toLowerCase().includes('pharmacology') || userMsg.toLowerCase().includes('drug')) {
+        reply = "Pharmacokinetics covers Absorption, Distribution, Metabolism, and Excretion (ADME). Pharmacodynamics is what the drug does to the body!";
+      }
+      setAiChatLog(prev => [...prev, { sender: 'AI', text: reply }]);
+    }, 800);
+  };
+
+  const TASBIR_LETTERS = [
+    { trigger: 'Stressed', label: 'Open when you\'re stressed', content: "Hey Ruhi, if you're reading this, you're probably working yourself too hard. Put the pen down, take a sip of water, and stretch. You are going to pass this with flying colors, but your health comes first. I am always routing for you." },
+    { trigger: 'Post_Anatomy', label: 'Open after your anatomy exam', content: "It's finally over! Regardless of how you feel it went, you survived it. Go celebrate, get some sleep, and let the anatomy coloring book rest for a day. I'm incredibly proud of you!" },
+    { trigger: 'Miss_Me', label: 'Open when you miss me', content: "Distance is just numbers, Ruhi. I am always holding a space for you in my heart. Close your eyes, feel the warmth, and know that we will catch up soon. I am just a call away." }
+  ];
+
+  const MOOD_RESPONSES: Record<string, string> = {
+    Happy: "Your joy is infectious, Ruhi! Capture this feeling and save it for a cloudy day. 🌸",
+    Calm: "Peace is a quiet power. Savor this tranquility as you go through your medical readings.",
+    Tired: "Your body is asking for kindness. Close the books for 20 minutes and rest your eyes. 😴",
+    Stressed: "You do not need to carry all of pathology and surgery in your head at once. Break it down.",
+    Sad: "It is okay to not be okay. Let the feelings pass. You are safe here. 🤍",
+    Lonely: "You are never truly alone. The people who love you are always carrying you in their thoughts.",
+    Motivated: "Run with this spark! But remember to pace yourself so you don't burn out. ✨"
+  };
+
+  // 12. LocalStorage Base Hydration (First layer security)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Countdown date restoration/persistence check
-      const savedTitle = localStorage.getItem('rooh_countdown_title');
-      const savedDate = localStorage.getItem('rooh_countdown_date');
-      const savedSub = localStorage.getItem('rooh_countdown_subtitle');
-      
-      if (savedTitle) {
-        setCountdownTitle(savedTitle);
-        setEditCountdownTitle(savedTitle);
-      }
-      if (savedDate) {
-        setCountdownDate(savedDate);
-        setEditCountdownDate(toLocalDatetimeString(savedDate));
+      const savedTarget = localStorage.getItem('rooh_countdown_target');
+      if (savedTarget) {
+        try {
+          const target = JSON.parse(savedTarget);
+          if (target.title) {
+            setCountdownTitle(target.title);
+            setEditCountdownTitle(target.title);
+          }
+          if (target.date) {
+            setCountdownDate(target.date);
+            setEditCountdownDate(toLocalDatetimeString(target.date));
+          }
+          if (target.subtitle) {
+            setCountdownSubtitle(target.subtitle);
+            setEditCountdownSubtitle(target.subtitle);
+          }
+        } catch (e) {
+          console.error("Error loading countdown target object", e);
+        }
       } else {
-        const defaultDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 2.8).toISOString();
-        setCountdownDate(defaultDate);
-        setEditCountdownDate(toLocalDatetimeString(defaultDate));
-        localStorage.setItem('rooh_countdown_date', defaultDate); // Prevent reset on tab reboot
+        const savedTitle = localStorage.getItem('rooh_countdown_title');
+        const savedDate = localStorage.getItem('rooh_countdown_date');
+        const savedSub = localStorage.getItem('rooh_countdown_subtitle');
+        const finalTitle = savedTitle || "Anatomy Final Exam";
+        const finalSub = savedSub || "Gross Anatomy & Embryology Review";
+        const finalDate = savedDate || new Date(Date.now() + 1000 * 60 * 60 * 24 * 2.8).toISOString();
+        
+        setCountdownTitle(finalTitle);
+        setEditCountdownTitle(finalTitle);
+        setCountdownDate(finalDate);
+        setEditCountdownDate(toLocalDatetimeString(finalDate));
+        setCountdownSubtitle(finalSub);
+        setEditCountdownSubtitle(finalSub);
+        
+        localStorage.setItem('rooh_countdown_target', JSON.stringify({ title: finalTitle, date: finalDate, subtitle: finalSub }));
       }
-      if (savedSub) {
-        setCountdownSubtitle(savedSub);
-        setEditCountdownSubtitle(savedSub);
+
+      // Sticky notes local area hydration
+      const savedNote = localStorage.getItem('local_sticky_note') || '';
+      setStickyNote(savedNote);
+
+      // Medications list local hydration
+      const savedMeds = localStorage.getItem('rooh_medications');
+      if (savedMeds) {
+        try {
+          setMedications(JSON.parse(savedMeds));
+        } catch (e) {
+          console.error("Error parsing medications from local cache", e);
+        }
+      } else {
+        const defaults = [
+          { id: '1', name: 'Multivitamin', time: '08:00 AM', taken: false },
+          { id: '2', name: 'Iron Supplement', time: '10:00 PM', taken: false }
+        ];
+        setMedications(defaults);
+        localStorage.setItem('rooh_medications', JSON.stringify(defaults));
+      }
+
+      // Study planner tasks local hydration
+      const savedTasks = localStorage.getItem('rooh_study_tasks');
+      if (savedTasks) {
+        try {
+          setTasks(JSON.parse(savedTasks));
+        } catch (e) {}
       }
 
       // Hidden notes (Easter Eggs)
@@ -191,7 +531,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // 10. Timestamp-Based Session Recovery Math
+  // 13. Timestamp-Based Session Recovery Math
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedGoal = localStorage.getItem('rooh_study_hours_goal');
@@ -244,29 +584,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const getGreetingText = (hour: number) => {
-      if (hour >= 22 || hour < 5) {
-        return Math.random() > 0.5 
-          ? "Burning the midnight oil again, future doctor? 🌙" 
-          : "Another late-night study session? I'm rooting for you.";
-      }
-      if (hour >= 5 && hour < 12) return "Good Morning, Ruhi 🌅";
-      if (hour >= 12 && hour < 17) return "Good Afternoon, Ruhi ☀️";
-      if (hour >= 17 && hour < 22) return "Good Evening, Ruhi 🌙";
-      return "Good Night, Ruhi 🌌";
-    };
-
-    const updateGreeting = () => {
-      const hour = new Date().getHours();
-      setGreeting(getGreetingText(hour));
-    };
-
-    updateGreeting();
-    const interval = setInterval(updateGreeting, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleDiscoverEgg = (id: string, content: string) => {
     if (!discoveredEggs.includes(id)) {
       const updated = [...discoveredEggs, id];
@@ -298,18 +615,6 @@ export default function Dashboard() {
         <span className="text-xs">{icon}</span>
       </button>
     );
-  };
-
-  const handleSaveCountdown = (title: string, dateStr: string, subtitle: string) => {
-    setCountdownTitle(title);
-    setCountdownDate(dateStr);
-    setCountdownSubtitle(subtitle);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rooh_countdown_title', title);
-      localStorage.setItem('rooh_countdown_date', dateStr);
-      localStorage.setItem('rooh_countdown_subtitle', subtitle);
-    }
-    setIsConfiguringCountdown(false);
   };
 
   // Affirmation Matrix & Ultra-Rare Notes Setup
@@ -437,40 +742,9 @@ export default function Dashboard() {
     };
   }, [isPlaying, activeAudioLetter, currentAudio, audioDuration]);
 
-  // Medication Routine Scheduler States
-  const [medications, setMedications] = useState<{ id: string; name: string; time: string; taken: boolean }[]>([]);
-
-  // Load medications from localStorage on client-side mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('rooh_medications');
-      if (saved) {
-        try {
-          setMedications(JSON.parse(saved));
-        } catch (e) {
-          console.error("Error parsing medications", e);
-        }
-      } else {
-        const defaults = [
-          { id: '1', name: 'Multivitamin', time: '08:00 AM', taken: false },
-          { id: '2', name: 'Iron Supplement', time: '10:00 PM', taken: false }
-        ];
-        setMedications(defaults);
-        localStorage.setItem('rooh_medications', JSON.stringify(defaults));
-      }
-    }
-  }, []);
-
   const [newMedName, setNewMedName] = useState('');
   const [newMedTime, setNewMedTime] = useState('08:00 AM');
   const [lastTriggeredMeds, setLastTriggeredMeds] = useState<Record<string, string>>({}); // medicationId -> YYYY-MM-DD HH:MM
-
-  // Save medications to local storage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rooh_medications', JSON.stringify(medications));
-    }
-  }, [medications]);
 
   // Midnight check-in to reset medication completion status
   useEffect(() => {
@@ -506,40 +780,10 @@ export default function Dashboard() {
     "Another step closer to your dreams. You are unstoppable!"
   ];
 
-  const triggerCelebration = (message: string) => {
-    setCelebrationMessage(message);
-    const newConfetti = Array.from({ length: 40 }).map((_, i) => ({
-      id: Math.random() + i,
-      x: Math.random() * 100, // percentage width
-      color: Math.random() > 0.5 ? '#CFC8FF' : '#CCFFBC', // Lavender or Mint
-    }));
-    setConfetti(newConfetti);
-    setTimeout(() => {
-      setConfetti([]);
-    }, 4000);
-  };
-
   const getRandomAffirmation = () => {
     const idx = Math.floor(Math.random() * TASBIR_AFFIRMATIONS.length);
     return TASBIR_AFFIRMATIONS[idx];
   };
-
-  // Sanctuary Notes Sticky Pad Auto-Save hook
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('local_sticky_note') || '';
-      setStickyNote(saved);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('local_sticky_note', stickyNote);
-      }
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [stickyNote]);
 
   // Planner States
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -596,81 +840,69 @@ export default function Dashboard() {
         });
       }
     }
-
-    // Vercel PWA Worker Registration
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
-      navigator.serviceWorker.register('data:application/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdwdXNoJywgZnVuY3Rpb24oZSl7fSk7', { scope: '/' })
-        .then(() => console.log('Vercel PWA Worker Active.'))
-        .catch(err => console.log('Worker registration failed:', err));
-    }
   }, []);
 
-  // Surprise Notes Calm Interval check
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const lastShown = localStorage.getItem('rooh_last_surprise_time');
-      const now = Date.now();
-      if (!lastShown || now - parseInt(lastShown, 10) > 4 * 3600 * 1000) {
-        if (Math.random() < 0.15) {
-          triggerSurpriseNote();
-          localStorage.setItem('rooh_last_surprise_time', String(now));
-        }
-      }
-    }
-  }, []);
-
-  // Bulletproof Notification Delivery Engine with SW Overdrive
-  const sendNativeNotification = (title: string, message: string) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      console.warn(`[Push Mock] ${title}: ${message}`);
-      return;
-    }
-
-    // Force production-grade parameters to wake up lock screens and notify reliably
-    const options = {
-      body: message,
-      tag: "medication-reminder",
-      renotify: true,
-      requireInteraction: true,
-      vibrate: [300, 100, 300]
-    };
-
-    if (Notification.permission === 'granted') {
-      // Prioritize SW registration to bypass background restrictions
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then((registration) => {
-          registration.showNotification(title, options)
-            .catch(err => {
-              console.warn("SW Notification failed, using fallback:", err);
-              new Notification(title, options);
-            });
-        }).catch(() => {
-          new Notification(title, options);
-        });
-      } else {
-        new Notification(title, options);
-      }
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then((permission) => {
-        setHasPushPermission(permission === 'granted');
-        if (permission === 'granted') {
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification(title, options);
-            }).catch(() => {
-              new Notification(title, options);
-            });
-          } else {
-            new Notification(title, options);
-          }
+  // 14. Unified Real-Time Replication Sync Engine (Supabase Cloud Layer)
+  const syncWellnessToSupabase = async (updatedFields: any) => {
+    if (!userId) return;
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    setSyncStatus('syncing');
+    
+    try {
+      const payload: any = {
+        user_id: userId,
+        log_date: todayStr,
+        ...updatedFields
+      };
+      
+      // Filter out columns not supported in the active DB scheme to prevent crashes
+      const filteredPayload: any = {};
+      Object.keys(payload).forEach(key => {
+        if (dbColumns.includes(key) || dbColumns.length === 0) {
+          filteredPayload[key] = payload[key];
         }
       });
-    } else {
-      console.warn(`[Push Blocked] ${title}: ${message}`);
+      
+      const { error } = await supabase
+        .from('wellness_tracker')
+        .upsert(filteredPayload, { onConflict: 'user_id,log_date' });
+        
+      if (error) throw error;
+      setSyncStatus('synced');
+    } catch (err) {
+      console.warn('DB Sync failed. Reverting to sandbox state.', err);
+      setSyncStatus('offline');
     }
   };
 
-  // Precision Active Prescription Push Engine checker loop (30s interval)
+  const syncAllData = async (
+    medsList = medications, 
+    noteText = stickyNote, 
+    title = countdownTitle, 
+    targetDate = countdownDate, 
+    subtitle = countdownSubtitle,
+    waterVal = water,
+    waterGoalVal = waterGoal,
+    sleepVal = sleep,
+    breaksVal = breaks,
+    streakVal = streak
+  ) => {
+    const updates = {
+      water_glasses: waterVal,
+      water_goal: waterGoalVal,
+      sleep_hours: sleepVal,
+      breaks_taken: breaksVal,
+      study_streak: streakVal,
+      medications: medsList,
+      sticky_note: noteText,
+      countdown_title: title,
+      countdown_date: targetDate,
+      countdown_subtitle: subtitle
+    };
+    await syncWellnessToSupabase(updates);
+  };
+
+  // Precision Ticker Interval Loop (Medications alerts every 30s)
   useEffect(() => {
     const checkPrescriptions = () => {
       const now = new Date();
@@ -696,7 +928,7 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [medications, lastTriggeredMeds]);
 
-  // Fetch and Subscribe to all wellness changes in a single useEffect loop
+  // Fetch and Subscribe to wellness and task databases on mount
   useEffect(() => {
     if (!userId) return;
 
@@ -706,7 +938,6 @@ export default function Dashboard() {
       try {
         setSyncStatus('syncing');
         
-        // 1. Defensive Initial Fetch & Upsert Fallback
         let { data: wellnessData, error: wellnessErr } = await supabase
           .from('wellness_tracker')
           .select('*')
@@ -718,11 +949,11 @@ export default function Dashboard() {
           const defaultRow = {
             user_id: userId,
             log_date: todayStr,
-            water_glasses: 0,
-            water_goal: 8,
-            sleep_hours: 0,
-            breaks_taken: 0,
-            study_streak: 12,
+            water_glasses: water,
+            water_goal: waterGoal,
+            sleep_hours: sleep,
+            breaks_taken: breaks,
+            study_streak: streak,
             steps: 4000
           };
           const { data: upsertData, error: upsertErr } = await supabase
@@ -739,14 +970,47 @@ export default function Dashboard() {
         }
         
         if (wellnessData) {
+          setDbColumns(Object.keys(wellnessData));
           setWater(wellnessData.water_glasses ?? 0);
           setWaterGoal(wellnessData.water_goal ?? 8);
           setSleep(Number(wellnessData.sleep_hours ?? 0));
           setBreaks(wellnessData.breaks_taken ?? 0);
           setStreak(wellnessData.study_streak ?? 12);
+          
+          // Hydrate Medications list from cloud if present
+          if (wellnessData.medications) {
+            let meds = wellnessData.medications;
+            if (typeof meds === 'string') {
+              try { meds = JSON.parse(meds); } catch (e) {}
+            }
+            if (Array.isArray(meds) && meds.length > 0) {
+              setMedications(meds);
+              localStorage.setItem('rooh_medications', JSON.stringify(meds));
+            }
+          }
+
+          // Hydrate sticky note from cloud if present
+          if (wellnessData.sticky_note !== undefined) {
+            setStickyNote(wellnessData.sticky_note || '');
+            localStorage.setItem('local_sticky_note', wellnessData.sticky_note || '');
+          }
+
+          // Hydrate countdown configurations from cloud if present
+          if (wellnessData.countdown_title !== undefined) {
+            setCountdownTitle(wellnessData.countdown_title || "Anatomy Final Exam");
+            setEditCountdownTitle(wellnessData.countdown_title || "Anatomy Final Exam");
+          }
+          if (wellnessData.countdown_date) {
+            setCountdownDate(wellnessData.countdown_date);
+            setEditCountdownDate(toLocalDatetimeString(wellnessData.countdown_date));
+          }
+          if (wellnessData.countdown_subtitle !== undefined) {
+            setCountdownSubtitle(wellnessData.countdown_subtitle || "Gross Anatomy & Embryology Review");
+            setEditCountdownSubtitle(wellnessData.countdown_subtitle || "Gross Anatomy & Embryology Review");
+          }
         }
 
-        // Fetch tasks
+        // Fetch planner tasks from Supabase
         const { data: dbTasks, error: tasksErr } = await supabase
           .from('tasks')
           .select('*')
@@ -755,6 +1019,7 @@ export default function Dashboard() {
         
         if (!tasksErr && dbTasks) {
           setTasks(dbTasks);
+          localStorage.setItem('rooh_study_tasks', JSON.stringify(dbTasks));
         }
 
         setSyncStatus('synced');
@@ -765,7 +1030,7 @@ export default function Dashboard() {
 
     fetchInitialData();
 
-    // 2. Aggressive Wildcard Realtime Handler
+    // Aggressive Realtime database subscriptions
     const wellnessChannel = supabase
       .channel('live-wellness-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_tracker' }, (payload) => {
@@ -776,13 +1041,25 @@ export default function Dashboard() {
           setWaterGoal(data.water_goal ?? 8);
           setSleep(Number(data.sleep_hours ?? 0));
           setBreaks(data.breaks_taken ?? 0);
-          setStreak(data.study_streak ?? 12); // Absolute force sync for streak
+          setStreak(data.study_streak ?? 12);
+          
+          if (data.medications) {
+            let meds = data.medications;
+            if (typeof meds === 'string') {
+              try { meds = JSON.parse(meds); } catch (e) {}
+            }
+            if (Array.isArray(meds)) {
+              setMedications(meds);
+            }
+          }
+          if (data.sticky_note !== undefined) {
+            setStickyNote(data.sticky_note || '');
+          }
         }
         setSyncStatus('synced');
       })
       .subscribe();
 
-    // Setup Realtime Tasks subscription
     const tasksChannel = supabase.channel(`realtime-tasks:${userId}`)
       .on('postgres_changes', {
         event: '*',
@@ -796,7 +1073,10 @@ export default function Dashboard() {
             .select('*')
             .eq('user_id', userId)
             .order('created_at', { ascending: false });
-          if (data) setTasks(data);
+          if (data) {
+            setTasks(data);
+            localStorage.setItem('rooh_study_tasks', JSON.stringify(data));
+          }
         };
         refetchTasks();
       })
@@ -808,7 +1088,7 @@ export default function Dashboard() {
     };
   }, [userId]);
 
-  // 4. Optimistic DB Mutations
+  // 15. Optimistic DB Mutations
   const updateWellnessMetric = async (
     field: 'water_glasses' | 'sleep_hours' | 'breaks_taken' | 'study_streak' | 'water_goal', 
     amount: number
@@ -822,13 +1102,11 @@ export default function Dashboard() {
     if (field === 'water_glasses') {
       finalWater = Math.max(0, water + amount);
       setWater(finalWater);
-      
-      // Trigger Celebration when target water goal reached exactly
       if (finalWater >= waterGoal && water < waterGoal) {
         triggerCelebration("Hydrated and healthy—proud of you, Ruhi! 🥛🤍");
       }
     } else if (field === 'water_goal') {
-      finalWaterGoal = Math.max(1, amount); // Set absolute value
+      finalWaterGoal = Math.max(1, amount);
       setWaterGoal(finalWaterGoal);
     } else if (field === 'sleep_hours') {
       finalSleep = Math.max(0, sleep + amount);
@@ -841,255 +1119,56 @@ export default function Dashboard() {
       setStreak(finalStreak);
     }
 
-    if (!userId) return;
-    const todayStr = new Date().toLocaleDateString('en-CA');
-
-    try {
-      setSyncStatus('syncing');
-      const { error } = await supabase.from('wellness_tracker').upsert({
-        user_id: userId,
-        log_date: todayStr,
-        water_glasses: finalWater,
-        water_goal: finalWaterGoal,
-        sleep_hours: finalSleep,
-        breaks_taken: finalBreaks,
-        study_streak: finalStreak,
-        steps: 4000
-      }, { onConflict: 'user_id,log_date' });
-
-      if (error) throw error;
-      setSyncStatus('synced');
-    } catch (err) {
-      console.warn('Sync failed. Reverting to sandbox state.');
-      setSyncStatus('offline');
-    }
+    await syncAllData(
+      medications,
+      stickyNote,
+      countdownTitle,
+      countdownDate,
+      countdownSubtitle,
+      finalWater,
+      finalWaterGoal,
+      finalSleep,
+      finalBreaks,
+      finalStreak
+    );
   };
 
-  // 5. Active Study Session Countdown Timer Ticker with Unix Timestamp Persistence
-  const adjustStudyGoal = (amount: number) => {
-    const nextGoal = Math.max(1, Math.min(24, studyHoursGoal + amount));
-    setStudyHoursGoal(nextGoal);
-    setSecondsRemaining(nextGoal * 3600);
-    setTotalElapsedSeconds(0);
-    setTimerActive(false);
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rooh_study_hours_goal', String(nextGoal));
-      localStorage.setItem('rooh_study_seconds_remaining', String(nextGoal * 3600));
-      localStorage.setItem('rooh_study_timer_active', 'false');
-    }
-  };
-
-  const handleToggleTimer = () => {
-    const nextActive = !timerActive;
-    setTimerActive(nextActive);
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rooh_study_timer_active', String(nextActive));
-      localStorage.setItem('rooh_study_last_sync_time', String(Date.now()));
-      localStorage.setItem('rooh_study_seconds_remaining', String(secondsRemaining));
-    }
-  };
-
-  const handleResetTimer = () => {
-    setTimerActive(false);
-    setSecondsRemaining(studyHoursGoal * 3600);
-    setTotalElapsedSeconds(0);
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rooh_study_timer_active', 'false');
-      localStorage.setItem('rooh_study_seconds_remaining', String(studyHoursGoal * 3600));
-    }
-  };
-
-  // Precision Ticker Interval Loop with absolute Timestamp persistence
+  // Sticky Pad Auto-saving with debounced cloud replication
   useEffect(() => {
-    let intervalId: any = null;
-    if (timerActive) {
-      intervalId = setInterval(() => {
-        setSecondsRemaining(prev => {
-          if (prev <= 1) {
-            clearInterval(intervalId);
-            setTimerActive(false);
-            localStorage.setItem('rooh_study_timer_active', 'false');
-            localStorage.setItem('rooh_study_seconds_remaining', '0');
+    const handler = setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('local_sticky_note', stickyNote);
+        syncAllData(medications, stickyNote);
+      }
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [stickyNote]);
 
-            if (!badDayProtocolActive) {
-              sendNativeNotification("ROOH Sanctuary 🧠", "done jaan eibar amar kase asho");
-              // Trigger celebration overlay on goal completion
-              triggerCelebration(getRandomAffirmation());
-              // Trigger surprise note
-              triggerSurpriseNote();
-              // Optimistically update study streak on goal completion
-              updateWellnessMetric('study_streak', 1);
-            }
-            return 0;
-          }
-          
-          const next = prev - 1;
-          localStorage.setItem('rooh_study_seconds_remaining', String(next));
-          localStorage.setItem('rooh_study_last_sync_time', String(Date.now()));
+  // Time-Aware Greeting Lifecycle Loop (10s checks to instantly sync night mode swaps)
+  const [greeting, setGreeting] = useState("Hello, Ruhi 🌸");
 
-          const elapsed = (studyHoursGoal * 3600) - next;
-          setTotalElapsedSeconds(elapsed);
-
-          // 1. Check 1-Hour Milestone (3600 seconds)
-          if (elapsed === 3600 && !badDayProtocolActive) {
-            sendNativeNotification("ROOH Sanctuary 🌙", "I love you ruhi");
-          }
-
-          return next;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId);
+  useEffect(() => {
+    const getGreetingText = (hour: number) => {
+      if (hour >= 22 || hour < 5) {
+        return Math.random() > 0.5 
+          ? "Burning the midnight oil again, future doctor? 🌙" 
+          : "Another late-night study session? I'm rooting for you.";
+      }
+      if (hour >= 5 && hour < 12) return "Good Morning, Ruhi 🌅";
+      if (hour >= 12 && hour < 17) return "Good Afternoon, Ruhi ☀️";
+      if (hour >= 17 && hour < 22) return "Good Evening, Ruhi 🌙";
+      return "Good Night, Ruhi 🌌";
     };
-  }, [timerActive, studyHoursGoal, badDayProtocolActive]);
 
-  // Format countdown text e.g. 03:59:59
-  const formatTimerString = () => {
-    const hrs = Math.floor(secondsRemaining / 3600);
-    const mins = Math.floor((secondsRemaining % 3600) / 60);
-    const secs = secondsRemaining % 60;
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      setGreeting(getGreetingText(hour));
+    };
 
-  // Seeded Daily Content Rotator
-  const [dailyData, setDailyData] = useState({
-    affirmation: "You are enough, Ruhi. One step is still progress.",
-    comfortCard: {
-      category: "Study Stress",
-      title: "The Books Will Wait 📚",
-      content: "If the anatomy diagrams are blurring, close the book. Rest is productive."
-    }
-  });
-
-  useEffect(() => {
-    const daily = getDailyContent();
-    setDailyData({
-      affirmation: daily.affirmation,
-      comfortCard: daily.comfortCard
-    });
+    updateGreeting();
+    const interval = setInterval(updateGreeting, 10000);
+    return () => clearInterval(interval);
   }, []);
-
-  const handleWaterGoalChange = (val: number) => {
-    const cleanVal = Math.max(1, val);
-    setWaterGoal(cleanVal);
-    localStorage.setItem('rooh_water_goal', String(cleanVal));
-    updateWellnessMetric('water_goal', cleanVal);
-  };
-
-  // Planner Mutator Helpers
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-
-    const newTask = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newTaskTitle,
-      subject: newTaskSubject,
-      is_completed: false,
-      created_at: new Date().toISOString()
-    };
-
-    // Optimistic local update
-    setTasks(prev => [newTask, ...prev]);
-    setNewTaskTitle('');
-
-    if (!userId) return;
-
-    try {
-      setSyncStatus('syncing');
-      const { error } = await supabase.from('tasks').insert({
-        user_id: userId,
-        title: newTask.title,
-        subject: newTask.subject,
-        is_completed: false
-      });
-      if (error) throw error;
-      setSyncStatus('synced');
-    } catch (err) {
-      setSyncStatus('offline');
-    }
-  };
-
-  const handleToggleTask = async (id: string, is_completed: boolean) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, is_completed } : t));
-
-    if (is_completed) {
-      // Trigger Celebration when task matches completed status
-      triggerCelebration(getRandomAffirmation());
-      // 25% chance to trigger surprise note
-      if (Math.random() < 0.25) {
-        triggerSurpriseNote();
-      }
-    }
-
-    if (!userId) return;
-
-    try {
-      setSyncStatus('syncing');
-      const { error } = await supabase.from('tasks').update({ is_completed }).eq('id', id);
-      if (error) throw error;
-      setSyncStatus('synced');
-    } catch (err) {
-      setSyncStatus('offline');
-    }
-  };
-
-  const handleDeleteTask = async (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-
-    if (!userId) return;
-
-    try {
-      setSyncStatus('syncing');
-      const { error } = await supabase.from('tasks').delete().eq('id', id);
-      if (error) throw error;
-      setSyncStatus('synced');
-    } catch (err) {
-      setSyncStatus('offline');
-    }
-  };
-
-  const toggleSound = (sound: string) => {
-    setActiveSounds(prev => ({ ...prev, [sound]: !prev[sound] }));
-  };
-
-  const handleSendAiPrompt = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiPrompt.trim()) return;
-    const userMsg = aiPrompt;
-    setAiPrompt('');
-    setAiChatLog(prev => [...prev, { sender: 'User', text: userMsg }]);
-
-    setTimeout(() => {
-      let reply = "That's a vital medical concept. Let me check the textbook definitions...";
-      if (userMsg.toLowerCase().includes('heart') || userMsg.toLowerCase().includes('cardio')) {
-        reply = "The heart acts as a pump in the cardiovascular system. Left ventricle output is SV × HR. Remember, preload and afterload regulate this output!";
-      } else if (userMsg.toLowerCase().includes('pharmacology') || userMsg.toLowerCase().includes('drug')) {
-        reply = "Pharmacokinetics covers Absorption, Distribution, Metabolism, and Excretion (ADME). Pharmacodynamics is what the drug does to the body!";
-      }
-      setAiChatLog(prev => [...prev, { sender: 'AI', text: reply }]);
-    }, 800);
-  };
-
-  const TASBIR_LETTERS = [
-    { trigger: 'Stressed', label: 'Open when you\'re stressed', content: "Hey Ruhi, if you're reading this, you're probably working yourself too hard. Put the pen down, take a sip of water, and stretch. You are going to pass this with flying colors, but your health comes first. I am always routing for you." },
-    { trigger: 'Post_Anatomy', label: 'Open after your anatomy exam', content: "It's finally over! Regardless of how you feel it went, you survived it. Go celebrate, get some sleep, and let the anatomy coloring book rest for a day. I'm incredibly proud of you!" },
-    { trigger: 'Miss_Me', label: 'Open when you miss me', content: "Distance is just numbers, Ruhi. I am always holding a space for you in my heart. Close your eyes, feel the warmth, and know that we will catch up soon. I am just a call away." }
-  ];
-
-  const MOOD_RESPONSES: Record<string, string> = {
-    Happy: "Your joy is infectious, Ruhi! Capture this feeling and save it for a cloudy day. 🌸",
-    Calm: "Peace is a quiet power. Savor this tranquility as you go through your medical readings.",
-    Tired: "Your body is asking for kindness. Close the books for 20 minutes and rest your eyes. 😴",
-    Stressed: "You do not need to carry all of pathology and surgery in your head at once. Break it down.",
-    Sad: "It is okay to not be okay. Let the feelings pass. You are safe here. 🤍",
-    Lonely: "You are never truly alone. The people who love you are always carrying you in their thoughts.",
-    Motivated: "Run with this spark! But remember to pace yourself so you don't burn out. ✨"
-  };
 
   // Theme variable configurations based on active clock hour
   const canvasBgClass = isMoonMode ? 'bg-[#0D3B66]' : 'bg-[#FFFDF7]';
@@ -1546,7 +1625,7 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={cycleBadDayComfortNote}
-                      className="mt-4 text-[10px] font-bold text-purple-300 hover:underline flex items-center gap-1 font-sans cursor-pointer self-start"
+                      className="mt-4 text-[10px] font-bold text-purple-350 hover:underline flex items-center gap-1 font-sans cursor-pointer self-start"
                     >
                       🔄 Cycle Another Comfort Note
                     </button>
@@ -1592,7 +1671,7 @@ export default function Dashboard() {
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="px-8 py-5 rounded-full bg-[#CFC8FF] text-[#0D3B66] font-serif text-xl font-bold border-2 border-[#0D3B66]/10 shadow-lg cursor-pointer animate-pulse"
+                    className="px-8 py-5 rounded-full bg-[#CFC8FF] text-[#0D3B66] font-serif text-xl font-bold border-2 border-[#0D3B66]/10 shadow-lg cursor-pointer"
                   >
                     ❤️ I Need Comfort ❤️
                   </motion.button>
@@ -2023,13 +2102,18 @@ export default function Dashboard() {
                         alert("Please use HH:MM AM/PM format (e.g. '08:00 AM' or '10:00 PM')");
                         return;
                       }
+                      
                       const newMed = {
                         id: Math.random().toString(36).substr(2, 9),
                         name: newMedName.trim(),
                         time: newMedTime.trim().toUpperCase(),
                         taken: false
                       };
-                      setMedications(prev => [...prev, newMed]);
+                      const updatedMeds = [...medications, newMed];
+                      setMedications(updatedMeds);
+                      localStorage.setItem('rooh_medications', JSON.stringify(updatedMeds));
+                      syncAllData(updatedMeds);
+                      
                       setNewMedName('');
                       setNewMedTime('08:00 AM');
                     }}
@@ -2056,7 +2140,11 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => {
-                            setMedications(prev => prev.map(m => m.id === med.id ? { ...m, taken: !m.taken } : m));
+                            const updatedMeds = medications.map(m => m.id === med.id ? { ...m, taken: !m.taken } : m);
+                            setMedications(updatedMeds);
+                            localStorage.setItem('rooh_medications', JSON.stringify(updatedMeds));
+                            syncAllData(updatedMeds);
+
                             if (!med.taken) {
                               triggerCelebration("Oshud khavar jonno proud of you, Doctor! 🌸");
                               if (Math.random() < 0.25) {
@@ -2084,7 +2172,12 @@ export default function Dashboard() {
                       </div>
 
                       <button
-                        onClick={() => setMedications(prev => prev.filter(m => m.id !== med.id))}
+                        onClick={() => {
+                          const updatedMeds = medications.filter(m => m.id !== med.id);
+                          setMedications(updatedMeds);
+                          localStorage.setItem('rooh_medications', JSON.stringify(updatedMeds));
+                          syncAllData(updatedMeds);
+                        }}
                         className="p-1.5 hover:bg-red-50/10 text-red-500 rounded-lg transition-colors shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -2158,7 +2251,7 @@ export default function Dashboard() {
                         <span className="text-2xl font-black">{water} Glasses</span>
                       </div>
                       {water >= waterGoal && (
-                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-[#CCFFBC] border border-emerald-350 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-[#CCFFBC] border border-emerald-355 px-2 py-0.5 rounded-full">
                           Achieved! 🌸
                         </span>
                       )}
