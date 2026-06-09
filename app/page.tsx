@@ -401,26 +401,52 @@ export default function Dashboard() {
     }
   };
 
-  const toggleSound = (sound: string) => {
-    setActiveSounds(prev => ({ ...prev, [sound]: !prev[sound] }));
-  };
+  // toggleSound moved below activeSounds to avoid hoisting issues with setActiveSounds
 
-  const handleSendAiPrompt = (e: React.FormEvent) => {
+  const handleSendAiPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!aiPrompt.trim()) return;
-    const userMsg = aiPrompt;
+    if (!aiPrompt.trim() || isAiTyping) return;
+    const userMsg = aiPrompt.trim();
     setAiPrompt('');
-    setAiChatLog(prev => [...prev, { sender: 'User', text: userMsg }]);
 
-    setTimeout(() => {
-      let reply = "That's a vital medical concept. Let me check the textbook definitions...";
-      if (userMsg.toLowerCase().includes('heart') || userMsg.toLowerCase().includes('cardio')) {
-        reply = "The heart acts as a pump in the cardiovascular system. Left ventricle output is SV × HR. Remember, preload and afterload regulate this output!";
-      } else if (userMsg.toLowerCase().includes('pharmacology') || userMsg.toLowerCase().includes('drug')) {
-        reply = "Pharmacokinetics covers Absorption, Distribution, Metabolism, and Excretion (ADME). Pharmacodynamics is what the drug does to the body!";
+    // Optimistically update conversation history
+    const updatedLog = [...aiChatLog, { sender: 'User', text: userMsg }];
+    setAiChatLog(updatedLog);
+    setIsAiTyping(true);
+
+    try {
+      const openRouterMessages = updatedLog.map(msg => ({
+        role: msg.sender === 'User' ? 'user' : 'assistant',
+        content: msg.text
+      }));
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messages: openRouterMessages
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed with status: ${response.status}`);
       }
+
+      const data = await response.json();
+      const reply = data?.choices?.[0]?.message?.content || '⚠️ Received empty message completion from model.';
+      
       setAiChatLog(prev => [...prev, { sender: 'AI', text: reply }]);
-    }, 800);
+    } catch (err: any) {
+      console.error('AI Chat request exception:', err);
+      setAiChatLog(prev => [
+        ...prev, 
+        { sender: 'AI', text: `⚠️ Connection failure: Could not reach Nvidia Companion. Details: ${err.message || err}` }
+      ]);
+    } finally {
+      setIsAiTyping(false);
+    }
   };
 
   const TASBIR_LETTERS = [
@@ -799,6 +825,66 @@ export default function Dashboard() {
     Cafe: false
   });
 
+  const SOUND_URLS = React.useRef<Record<string, string>>({
+    Rain: 'https://assets.mixkit.co/active_storage/sfx/2433/2433-500.wav',
+    Lofi: 'https://raw.githubusercontent.com/btahir/open-lofi/main/activities/2-am-debug-loop.mp3',
+    Cafe: 'https://www.orangefreesounds.com/wp-content/uploads/2020/02/Coffee-shop-background-noise.mp3'
+  });
+
+  const soundboardAudioRefs = React.useRef<Record<string, HTMLAudioElement | null>>({
+    Rain: null,
+    Lofi: null,
+    Cafe: null
+  });
+
+  const toggleSound = (sound: string) => {
+    setActiveSounds(prev => {
+      const nextActive = !prev[sound];
+      
+      if (typeof window !== 'undefined') {
+        try {
+          if (!soundboardAudioRefs.current[sound]) {
+            const audio = new Audio(SOUND_URLS.current[sound]);
+            audio.loop = true;
+            soundboardAudioRefs.current[sound] = audio;
+          }
+          
+          const audio = soundboardAudioRefs.current[sound];
+          if (audio) {
+            if (nextActive) {
+              audio.play().catch(e => {
+                console.warn(`Audio play failed for ${sound}:`, e);
+              });
+            } else {
+              audio.pause();
+            }
+          }
+        } catch (err) {
+          console.warn(`Soundboard audio error for ${sound}:`, err);
+        }
+      }
+      
+      return { ...prev, [sound]: nextActive };
+    });
+  };
+
+  // Clean up soundboard audios on unmount
+  useEffect(() => {
+    return () => {
+      Object.keys(soundboardAudioRefs.current).forEach(key => {
+        try {
+          const audio = soundboardAudioRefs.current[key];
+          if (audio) {
+            audio.pause();
+          }
+        } catch (e) {
+          console.warn("Cleanup audio failed:", e);
+        }
+        soundboardAudioRefs.current[key] = null;
+      });
+    };
+  }, []);
+
   // Tasbir Vault State
   const [openedLetter, setOpenedLetter] = useState<string | null>(null);
   const [vaultPassword, setVaultPassword] = useState('');
@@ -812,6 +898,14 @@ export default function Dashboard() {
   const [aiChatLog, setAiChatLog] = useState<{sender: string, text: string}[]>([
     { sender: 'AI', text: "Hello Ruhi! Ask me any medical concept, and I'll explain it simply." }
   ]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const chatLogRef = React.useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (chatLogRef.current) {
+      chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+    }
+  }, [aiChatLog, isAiTyping]);
 
   const flashcards = [
     { question: "What is the primary action of Beta-blockers?", answer: "Decrease heart rate and contractility by blocking epinephrine/norepinephrine binding to beta-adrenergic receptors." },
@@ -2730,9 +2824,12 @@ export default function Dashboard() {
               <MessageSquare className="w-3.5 h-3.5" /> AI Study Assistant & Companion
             </span>
 
-            <div className={`rounded-xl border p-3 h-28 overflow-y-auto mb-3 text-xs space-y-2 shadow-inner ${
-              isMoonMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 text-gray-700'
-            }`}>
+            <div 
+              ref={chatLogRef}
+              className={`rounded-xl border p-3 h-28 overflow-y-auto mb-3 text-xs space-y-2 shadow-inner ${
+                isMoonMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 text-gray-700'
+              }`}
+            >
               {aiChatLog.map((chat, idx) => (
                 <div key={idx} className={`flex ${chat.sender === 'User' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`p-2 rounded-xl max-w-[85%] ${
@@ -2744,21 +2841,35 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
+              {isAiTyping && (
+                <div className="flex justify-start">
+                  <div className={`p-2 rounded-xl flex items-center gap-1 text-[10px] italic ${
+                    isMoonMode ? 'bg-white/5 text-white/70 border border-white/10' : 'bg-gray-50 text-gray-500'
+                  }`}>
+                    <span className="w-1.5 h-1.5 bg-[#CFC8FF] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-[#CFC8FF] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-[#CFC8FF] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="ml-1 text-[9px]">Nemotron is generating...</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleSendAiPrompt} className="flex gap-2">
               <input
                 type="text"
-                placeholder="Ask about renal clearance, ADME, etc..."
+                placeholder={isAiTyping ? "Generating response..." : "Ask about renal clearance, ADME, etc..."}
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
-                className={`flex-1 text-xs py-2 px-3 rounded-lg border focus:outline-none font-sans ${inputClass}`}
+                disabled={isAiTyping}
+                className={`flex-1 text-xs py-2 px-3 rounded-lg border focus:outline-none font-sans ${inputClass} ${isAiTyping ? 'opacity-50 cursor-not-allowed' : ''}`}
               />
               <button 
                 type="submit"
-                className="bg-[#0D3B66] text-white hover:bg-[#092b4d] text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer"
+                disabled={isAiTyping}
+                className={`bg-[#0D3B66] text-white hover:bg-[#092b4d] text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer ${isAiTyping ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                Ask Assistant
+                {isAiTyping ? '...' : 'Ask Assistant'}
               </button>
             </form>
           </div>
